@@ -1,5 +1,4 @@
-import dotenv from 'dotenv';
-import TelegramBot from 'node-telegram-bot-api';
+import redis from 'redis';
 import { processInlineQuery, processMessage, processCallbackQuery } from 'bot/core';
 import { processStart, processGroup } from 'bot/actions';
 
