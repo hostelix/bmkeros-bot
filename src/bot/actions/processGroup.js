@@ -1,12 +1,17 @@
 import { User, Group, Session } from 'database/models';
+import { JsonEncode, JsonDecode } from 'utils/json';
 
-const manageMyGroups = async (bot, user, chat_id) => {
-    const groups = await user.getMyGroups({ attributes: ['id', 'name'] });
+const manageMyGroups = async (bot, context) => {
+
+    const { session, message } = context;
+
+    const groups = await Group.findAll({ where: { owner_id: session.user_id }, attributes: ['id', 'name'] });
+
     const buttons = groups.map(g => {
         return { text: g.name, callback_data: `group@open_group:${g.id}`};
     });
 
-    bot.sendMessage(chat_id, 'Choose a group!', {
+    bot.sendMessage(message.chat.id, 'Choose a group!', {
         reply_markup: JSON.stringify({
             inline_keyboard: [buttons],
         }),
@@ -54,16 +59,30 @@ const getHandle = (command) => {
     return actions[command] || actions['default'];
 };
 
-const processGroup = (bot) => {
+const processGroup = (bot, redis) => {
     return async (message) => {
 
-        const chat_id = message.chat.id;
-        const from_id = message.from.id;
-        const user = await User.findOne({ where: { chat_id: from_id }});
+        const context = {};
+        const session_key = `key_${message.chat.id}_${message.from.id}`;
+        const data = await redis.getAsync(session_key);
+        const session = JsonDecode(data);
 
+        if(session == null){
+            const user = await User.findOne({ where: { chat_id: message.from.id }});
+            const data = {
+                user_id: user.id,
+                chat_id: user.chat_id,
+            };
+            session = data;
+            redis.setAsync(session_key, JsonEncode(data));
+        }
+
+        context['session'] = session;
+        context['message'] = message;
+        const chat_id = 1;
         const handle = getHandle(message.text);
 
-        handle(bot, user, chat_id);
+        handle(bot, context, chat_id);
     };
 };
 
